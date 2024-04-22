@@ -81,20 +81,17 @@ class Message(BaseModel):
         image = values.get("image")
         document = values.get("document")
 
-        if isinstance(message_type, str):
-            message_type = MessageType(message_type)
-
-        if message_type == MessageType.TEXT and text:
-            values["text"] = TextMessage(**text)
-        elif message_type == MessageType.AUDIO and audio:
-            values["audio"] = AudioMessage(**audio)
-        elif message_type == MessageType.INTERACTIVE and interactive:
-            values["interactive"] = InteractiveMessage(**interactive)
-        elif message_type == MessageType.FORM and form:
-            values["form"] = FormMessage(**form)
-        elif message_type == MessageType.IMAGE and image:
-            values["image"] = ImageMessage(**image)
-        elif message_type == MessageType.DOCUMENT and document:
-            values["document"] = DocumentMessage(**document)
-        else:
-            raise ValueError("Invalid type")
+        if message_type == MessageType.TEXT and text is None:
+            raise ValueError(f"Text cannot be None for message type: {message_type.name}")
+        elif message_type == MessageType.AUDIO and audio is None:
+            raise ValueError(f"Audio cannot be None for message type: {message_type.name}")
+        elif message_type == MessageType.INTERACTIVE and interactive is None:
+            raise ValueError(f"Interactive cannot be None for message type: {message_type.name}")
+        elif message_type == MessageType.FORM and form is None:
+            raise ValueError(f"Form cannot be None for message type: {message_type.name}")
+        elif message_type == MessageType.IMAGE and image is None:
+            raise ValueError(f"Image cannot be None for message type: {message_type.name}")
+        elif message_type == MessageType.DOCUMENT and document is None:
+            raise ValueError(f"Document cannot be None for message type: {message_type.name}")
+        
+        return values

@@ -1,43 +1,42 @@
 from abc import ABC
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, model_validator
 from lib.data_models.message import Message
 
 
-class BotInflow(BaseModel, ABC):
+class BotInput(BaseModel, ABC):
     channel_name: str
 
 
-class RestBotInflow(BotInflow):
+class RestBotInput(BotInput):
     headers: Dict[str, str]
     data: Dict[str, Any]
     query_params: Dict[str, str]
 
 
 class ChannelIntent(Enum):
-    BOT_IN = "bot_inflow"
-    BOT_OUT = "bot_outflow"
+    CHANNEL_IN = "channel_in"
+    CHANNEL_OUT = "channel_out"
 
 
-class ChannelInput(BaseModel):
+class Channel(BaseModel):
+    source: str
     turn_id: str
     intent: ChannelIntent
-    bot_inflow: Optional[BotInflow] = None
-    bot_outflow: Optional[Message] = None
+    bot_input: Optional[BotInput] = None
+    bot_output: Optional[Message] = None
 
     @model_validator(mode="before")
     @classmethod
     def validate_data(cls, values: Dict):
         """Validates data field"""
         intent = values.get("intent")
-        bot_inflow = values.get("bot_inflow")
-        bot_outflow = values.get("bot_outflow")
-        if isinstance(intent, str):
-            intent = ChannelIntent(intent)
-        if intent == ChannelIntent.BOT_IN and bot_inflow and bot_outflow is None:
-            return values
-        elif intent == ChannelIntent.BOT_OUT and bot_inflow is None and bot_outflow:
-            return values
-        else:
-            raise ValueError("Intent mismatch with provided data")
+        bot_input = values.get("bot_input")
+        bot_output = values.get("bot_output")
+
+        if intent == ChannelIntent.CHANNEL_IN and bot_input is None:
+            raise ValueError("Bot input is required for channel in")
+        elif intent == ChannelIntent.CHANNEL_OUT and bot_output is None:
+            raise ValueError("Bot output is required for channel out")
+        return values

@@ -8,7 +8,8 @@ class LanguageIntent(Enum):
     LANGUAGE_OUT = "language_out"
 
 
-class LanguageInput(BaseModel):
+class Language(BaseModel):
+    source: str
     turn_id: str
     intent: LanguageIntent
     message: Message
