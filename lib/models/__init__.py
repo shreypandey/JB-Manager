@@ -21,17 +21,17 @@ class JBBot(Base):
 
     id = Column(String, primary_key=True)  # "1234"
     name = Column(String)  # "My Bot"
-    phone_number = Column(String, unique=True)  # +2348123456789
-    status = Column(String, nullable=False)  # active or inactive
     dsl = Column(String)
     code = Column(String)
     requirements = Column(String)
     index_urls = Column(ARRAY(String))
+    status = Column(String, nullable=False, default="active")  # active or deleted
+    timeout = Column(Integer, default=24*60*60)
+    supported_languages = Column(ARRAY(String))
     config_env = Column(JSON)  # variables to pass to the bot environment
     required_credentials = Column(ARRAY(String))  # ["API_KEY", "API_SECRET"]
     credentials = Column(JSON)  # {"API_KEY and other secrets"}
     version = Column(String, nullable=False)  # 0.0.1
-    channels = Column(ARRAY(String))
     created_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
@@ -43,6 +43,7 @@ class JBBot(Base):
     )
     users = relationship("JBUser", back_populates="bot")
     sessions = relationship("JBSession", back_populates="bot")
+    channels = relationship("JBChannel", back_populates="bot")
 
 
 class JBChannel(Base):
@@ -50,11 +51,17 @@ class JBChannel(Base):
 
     id = Column(String, primary_key=True)
     bot_id = Column(String, ForeignKey("jb_bot.id"))
+    status = Column(String, nullable=False)  # active or inactive
     name = Column(String)
     type = Column(String)
     key = Column(String)
     app_id = Column(String)
     url = Column(String)
+
+    turns = relationship("JBTurn", back_populates="channel")
+    messages = relationship("JBMessage", back_populates="channel")
+    sessions = relationship("JBSession", back_populates="channel")
+    bot = relationship("JBBot", back_populates="channels")
 
 
 class JBUser(Base):
@@ -64,35 +71,13 @@ class JBUser(Base):
     bot_id = Column(String, ForeignKey("jb_bot.id"))
     first_name = Column(String)
     last_name = Column(String)
-    # TODO: make phone_number as a generic field name (It may also include email)
-    phone_number = Column(String)
+    identifier = Column(String)
     language_preference = Column(String, default="en")
     created_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
     bot = relationship("JBBot", back_populates="users")
-    sessions = relationship("JBSession", back_populates="user")
-
-
-class JBSession(Base):
-    __tablename__ = "jb_session"
-
-    id = Column(String, primary_key=True)
-    pid = Column(String, ForeignKey("jb_users.id"))
-    bot_id = Column(String, ForeignKey("jb_bot.id"))
-    channel_id = Column(String, ForeignKey("jb_channel.id"))
-    created_at = Column(
-        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-        onupdate=func.now(),
-    )
-    user = relationship("JBUser", back_populates="sessions")
-    bot = relationship("JBBot", back_populates="sessions")
-    turns = relationship("JBTurn", back_populates="session")
+    turns = relationship("JBTurn", back_populates="user")
 
 
 class JBTurn(Base):
@@ -101,14 +86,14 @@ class JBTurn(Base):
     id = Column(String, primary_key=True)
     session_id = Column(String, ForeignKey("jb_session.id"))
     bot_id = Column(String, ForeignKey("jb_bot.id"))
+    channel_id = Column(String, ForeignKey("jb_channel.id"))
+    user_id = Column(String, ForeignKey("jb_users.id"))
     turn_type = Column(String)
-    channel = Column(String)
 
     session = relationship("JBSession", back_populates="turns")
     messages = relationship("JBMessage", back_populates="turn")
-
-    def __repr__(self):
-        return f"<JBTurn(id={self.id}, session_id={self.session_id}, bot_id={self.bot_id}, turn_type={self.turn_type}, channel={self.channel})>"
+    channel = relationship("JBChannel", back_populates="turns")
+    user = relationship("JBUser", back_populates="turns")
 
 
 class JBMessage(Base):
@@ -117,16 +102,12 @@ class JBMessage(Base):
     id = Column(String, primary_key=True)
     turn_id = Column(String, ForeignKey("jb_turn.id"))
     message_type = Column(String)
-    media_url = Column(String)
-    message_text = Column(String)
-    channel = Column(String)
-    channel_id = Column(String)
+    message = Column(JSON, nullable=False)
+    channel_id = Column(String, ForeignKey("jb_channel.id"))
     is_user_sent = Column(Boolean, nullable=False, default=True)
 
     turn = relationship("JBTurn", back_populates="messages")
-
-    def __repr__(self):
-        return f"<JBMessage(id={self.id}, turn_id={self.turn_id}, message_type={self.message_type}, media_url={self.media_url}, message_text={self.message_text}, channel={self.channel}, channel_id={self.channel_id}, is_user_sent={self.is_user_sent})>"
+    channel = relationship("JBChannel", back_populates="messages")
 
 
 class JBDocumentStoreLog(Base):
@@ -238,10 +219,14 @@ class JBChatHistory(Base):
     )
 
 
-class JBFSMState(Base):
-    __tablename__ = "jb_fsm_state"
+class JBSession(Base):
+    __tablename__ = "jb_session"
 
     id = Column(String, primary_key=True)
+    bot_id = Column(String, ForeignKey("jb_bot.id"))
+    channel_id = Column(String, ForeignKey("jb_channel.id"))
+    variables = Column(JSON)
+    
     created_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
@@ -251,10 +236,9 @@ class JBFSMState(Base):
         nullable=False,
         onupdate=func.now(),
     )
-    pid = Column(String)  # , ForeignKey('jb_users.id'))
-    state = Column(String)
-    variables = Column(JSON)
-    message = Column(String)
+    bot = relationship("JBBot", back_populates="sessions")
+    channel = relationship("JBChannel", back_populates="sessions")
+    turns = relationship("JBTurn", back_populates="session")
 
 
 class JBPluginUUID(Base):
@@ -263,6 +247,23 @@ class JBPluginUUID(Base):
     id = Column(String, primary_key=True)
     session_id = Column(String)
     turn_id = Column(String)
+    created_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        onupdate=func.now(),
+    )
+
+
+class JBForm(Base):
+    __tablename__ = "jb_form"
+
+    id = Column(String, primary_key=True)
+    bot_id = Column(String, ForeignKey("jb_bot.id"))
+    parameters = Column(JSON)
     created_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
