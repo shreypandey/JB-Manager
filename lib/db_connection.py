@@ -2,6 +2,8 @@ import os
 import sqlalchemy
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 db_name = os.getenv("POSTGRES_DATABASE_NAME")
 db_user = os.getenv("POSTGRES_DATABASE_USERNAME")
@@ -38,3 +40,20 @@ metadata = sqlalchemy.MetaData(
 )
 
 Base = declarative_base(metadata=metadata)
+
+sync_db_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+sync_engine = create_engine(
+    sync_db_url,
+    future=True,
+    echo=False,
+    max_overflow=50,
+    pool_size=25,
+    pool_timeout=60,
+    pool_recycle=3600,
+    pool_pre_ping=True
+)
+
+
+sync_session = sessionmaker(
+    bind=sync_engine, autocommit=False, autoflush=False, expire_on_commit=False
+)
