@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional, List, Dict
 from pydantic import BaseModel, model_validator
-from lib.data_models.message import Message
+from lib.data_models.message import Message, MessageType
 
 
 class FlowIntent(Enum):
@@ -50,25 +50,28 @@ class Callback(BaseModel):
     callback_input: str
 
 
-class DialogOption(Enum):
-    CONVERSATION_RESET = "CONVERSATION_RESET"
-    LANGUAGE_CHANGE = "LANGUAGE_CHANGE"
-    LANGUAGE_SELECTED = "LANGUAGE_SELECTED"
-
-
 class Dialog(BaseModel):
     turn_id: str
-    dialog_id: DialogOption
-    dialog_input: Optional[str]
+    message: Message
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_data(cls, values: Dict):
+        """Validates data field"""
+        message = values.get("message")
+
+        if message.message_type != MessageType.DIALOG:
+            raise ValueError("Only dialog message type is allowed for dialog intent")
+        return values
 
 
-class FlowInput(BaseModel):
+class Flow(BaseModel):
     source: str
     intent: FlowIntent
     bot_config: Optional[BotConfig] = None
     dialog: Optional[Dialog] = None
     callback: Optional[Callback] = None
-    user_input: Optional[Message] = None
+    user_input: Optional[UserInput] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -95,11 +98,13 @@ class FSMIntent(Enum):
     CONVERSATION_RESET = "CONVERSATION_RESET"
     LANGUAGE_CHANGE = "LANGUAGE_CHANGE"
     SEND_MESSAGE = "SEND_MESSAGE"
+    RAG_CALL = "RAG_CALL"
 
 
 class FSMOutput(BaseModel):
     intent: FSMIntent
     message: Optional[Message] = None
+    rag_query: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -107,9 +112,12 @@ class FSMOutput(BaseModel):
         """Validates data field"""
         intent = values.get("intent")
         message = values.get("message")
+        rag_query = values.get("rag_query")
 
         if intent == FSMIntent.SEND_MESSAGE and message is None:
             raise ValueError(f"message cannot be None for intent: {intent.name}")
+        elif intent == FSMIntent.RAG_CALL and rag_query is None:
+            raise ValueError(f"rag_query cannot be None for intent: {intent.name}")
         return values
 
 

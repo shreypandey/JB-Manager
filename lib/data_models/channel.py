@@ -24,7 +24,7 @@ class Channel(BaseModel):
     source: str
     turn_id: str
     intent: ChannelIntent
-    bot_input: Optional[BotInput] = None
+    bot_input: Optional[RestBotInput] = None
     bot_output: Optional[Message] = None
 
     @model_validator(mode="before")
