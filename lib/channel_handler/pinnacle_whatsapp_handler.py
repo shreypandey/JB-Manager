@@ -27,7 +27,7 @@ from lib.data_models import (
     DialogOption
 )
 from lib.models import JBChannel, JBUser, JBForm
-from lib.utils import decrypt_credentials
+from lib.utils import EncryptionHandler
 
 azure_creds = {
     "account_url": os.getenv("STORAGE_ACCOUNT_URL"),
@@ -193,7 +193,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         cls, channel: JBChannel, user: JBUser, message: TextMessage
     ) -> Dict[str, Any]:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.identifier),
@@ -207,7 +207,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         cls, channel: JBChannel, user: JBUser, message: AudioMessage
     ) -> Dict[str, Any]:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.phone_number),
@@ -224,10 +224,10 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         data: ListMessage,
     ) -> Dict[str, Any]:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "interactive",
             "interactive": {
                 "type": "list",
@@ -241,7 +241,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                     "button": data.button_text,
                     "sections": [
                         {
-                            "title": data,
+                            "title": data.list_title,
                             "rows": [
                                 {
                                     "id": option.option_id,
@@ -264,7 +264,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         data: ButtonMessage,
     ) -> Dict[str, Any]:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.phone_number),
@@ -311,7 +311,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         message: ImageMessage,
     ) -> str:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.phone_number),
@@ -328,7 +328,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         message: DocumentMessage,
     ) -> str:
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.phone_number),
@@ -361,7 +361,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
 
         form_parameters = cls.get_form_parameters(form_id)
         data = {
-            "messaging_product": channel.type,
+            "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
             "to": str(user.phone_number),
@@ -391,16 +391,16 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                 body="Please select your preferred language",
                 footer="भाषा चुनें",
                 options=[
-                    Option(id="lang_hindi", title="हिन्दी"),
-                    Option(id="lang_english", title="English"),
-                    Option(id="lang_bengali", title="বাংলা"),
-                    Option(id="lang_telugu", title="తెలుగు"),
-                    Option(id="lang_marathi", title="मराठी"),
-                    Option(id="lang_tamil", title="தமிழ்"),
-                    Option(id="lang_gujarati", title="ગુજરાતી"),
-                    Option(id="lang_urdu", title="اردو"),
-                    Option(id="lang_kannada", title="ಕನ್ನಡ"),
-                    Option(id="lang_odia", title="ଓଡ଼ିଆ"),
+                    Option(option_id="lang_hindi", option_text="हिन्दी"),
+                    Option(option_id="lang_english", option_text="English"),
+                    Option(option_id="lang_bengali", option_text="বাংলা"),
+                    Option(option_id="lang_telugu", option_text="తెలుగు"),
+                    Option(option_id="lang_marathi", option_text="मराठी"),
+                    Option(option_id="lang_tamil", option_text="தமிழ்"),
+                    Option(option_id="lang_gujarati", option_text="ગુજરાતી"),
+                    Option(option_id="lang_urdu", option_text="اردو"),
+                    Option(option_id="lang_kannada", option_text="ಕನ್ನಡ"),
+                    Option(option_id="lang_odia", option_text="ଓଡ଼ିଆ"),
                 ],
                 button_text="चुनें / Select",
                 list_title="भाषाएँ / Languages",
@@ -410,7 +410,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
 
     @classmethod
     def generate_header(cls, channel: JBChannel):
-        decrypted_key = decrypt_credentials(channel.key)
+        decrypted_key = EncryptionHandler.decrypt_text(channel.key)
         headers = {
             "Content-type": "application/json",
             "wanumber": channel.app_id,
@@ -423,8 +423,10 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         url = channel.url + "/v1/messages"
         headers = cls.generate_header(channel=channel)
         data = cls.parse_bot_output(message=message, channel=channel, user=user)
+        import logging
         r = requests.post(url, data=json.dumps(data), headers=headers)
         json_output = r.json()
+        logging.error(json_output)
         if json_output and json_output["messages"]:
             return json_output["messages"][0]["id"]
         return None
@@ -432,7 +434,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
     @classmethod
     def wa_download_audio(cls, channel: JBChannel, file_id: str):
         url = f"{channel.url}/v1/downloadmedia/{file_id}"
-        headers = WhatsappHelper.generate_header(channel=channel)
+        headers = cls.generate_header(channel=channel)
         r = requests.get(url, headers=headers)
         file_content = base64.b64encode(r.content)
         return file_content

@@ -3,14 +3,12 @@ from sqlalchemy import select
 from lib.db_connection import async_session
 from lib.models import JBMessage, JBTurn, JBUser, JBSession
 
-
-async def get_user_preferred_language(session_id: str):
-    query = select(JBSession.pid).where(JBSession.id == session_id)
+async def get_user_preferred_language(turn_id: str):
+    query = select(JBUser.language_preference).join(JBTurn, JBTurn.user_id==JBUser.id).where(JBTurn.id == turn_id)
     async with async_session() as session:
         async with session.begin():
             result = await session.execute(query)
-            pid = result.scalars().first()
-            preferred_language = await get_user_preferred_language_by_pid(pid)
+            preferred_language = result.scalars().first()
             return preferred_language
 
 

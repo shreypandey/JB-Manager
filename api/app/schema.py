@@ -37,13 +37,22 @@ class JBBotActivate(BaseModel):
 
 class JBBotCode(BaseModel):
     name: str
-    status: str = "inactive"
     dsl: str
     code: str
     requirements: str
     index_urls: List[str]
     version: Optional[str] = "v0.1"
     required_credentials: Optional[List[str]] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+class JBChannelContent(BaseModel):
+    name: str
+    key: str
+    app_id: str
+    url: str
+    status: str = "inactive"
 
     class Config:
         from_attributes = True

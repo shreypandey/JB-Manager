@@ -80,7 +80,7 @@ class DialogOption(Enum):
 
 class DialogMessage(BaseModel):
     dialog_id: DialogOption
-    dialog_input: Optional[str]
+    dialog_input: Optional[str] = None
 
 
 class Message(BaseModel):

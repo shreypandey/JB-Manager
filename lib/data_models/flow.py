@@ -129,12 +129,14 @@ class FSMInput(BaseModel):
     @classmethod
     def validate_data(cls, values: Dict):
         """Validates data field"""
-        if values.get("user_input") is None and values.get("callback_input") is None:
+        import logging
+        logging.error(f"values: {values}")
+        user_input = values.get("user_input")
+        callback_input = values.get("callback_input")
+        if user_input is None and callback_input is None:
             raise ValueError("user_input or callback_input is required")
-        elif (
-            values.get("user_input") is not None
-            and values.get("callback_input") is not None
-        ):
+        elif user_input is not None and callback_input is not None:
             raise ValueError(
                 "user_input and callback_input cannot be provided together"
             )
+        return values

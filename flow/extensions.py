@@ -1,7 +1,16 @@
 import os
+import logging
 from lib.azure_storage_sync import AzureStorageSync
-from lib.azure_storage import AzureStorage
+from lib.kafka_utils import KafkaConsumer, KafkaProducer
 
+logging.basicConfig()
+logger = logging.getLogger("flow")
+logger.setLevel(logging.INFO)
+
+consumer = KafkaConsumer.from_env_vars(
+    group_id="cooler_group_id", auto_offset_reset="latest"
+)
+producer = KafkaProducer.from_env_vars()
 
 account_url = os.getenv("STORAGE_ACCOUNT_URL")
 account_key = os.getenv("STORAGE_ACCOUNT_KEY")

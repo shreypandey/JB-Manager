@@ -1,10 +1,11 @@
+from typing import Dict
 import uuid
-from datetime import datetime
 
-from sqlalchemy import desc, join, select, update
+from sqlalchemy import select, update
+from sqlalchemy.orm import joinedload
 
 from lib.db_connection import async_session
-from lib.models import JBBot, JBChannel, JBMessage, JBSession, JBUser
+from lib.models import JBBot, JBChannel, JBMessage, JBSession, JBUser, JBTurn
 
 
 async def get_user_by_session_id(session_id: str):
@@ -20,6 +21,20 @@ async def get_user_by_session_id(session_id: str):
                 user = result.scalars().first()
                 return user
     return None
+
+
+async def get_user_by_turn_id(turn_id: str):
+    query = (
+        select(JBUser)
+        .join(JBTurn, JBTurn.user_id == JBUser.id)
+        .options(joinedload(JBUser.turns))
+        .where(JBTurn.id == turn_id)
+    )
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(query)
+            s = result.scalars().first()
+            return s
 
 
 async def get_bot_by_session_id(session_id: str):
@@ -50,6 +65,20 @@ async def get_channel_by_session_id(session_id: str):
                 channel = result.scalars().first()
                 return channel
     return None
+
+
+async def get_channel_by_turn_id(turn_id: str):
+    query = (
+        select(JBChannel)
+        .join(JBTurn)
+        .options(joinedload(JBChannel.turns))
+        .where(JBTurn.id == turn_id)
+    )
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(query)
+            s = result.scalars().first()
+            return s
 
 
 async def set_user_language(session_id: str, language: str):
@@ -83,11 +112,9 @@ async def update_message(msg_id: str, **kwargs):
 async def create_message(
     turn_id: str,
     message_type: str,
-    channel: str,
     channel_id: str,
+    message: Dict,
     is_user_sent: bool = False,
-    message_text: str = None,
-    media_url: str = None,
 ):
     message_id = str(uuid.uuid4())
     async with async_session() as session:
@@ -97,13 +124,10 @@ async def create_message(
                     id=message_id,
                     turn_id=turn_id,
                     message_type=message_type,
-                    channel=channel,
                     channel_id=channel_id,
                     is_user_sent=is_user_sent,
-                    message_text=message_text,
-                    media_url=media_url,
+                    message=message,
                 )
             )
             await session.commit()
             return message_id
-    return None
