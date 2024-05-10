@@ -81,6 +81,9 @@ class Dialog(BaseModel):
         """Validates data field"""
         message = values.get("message")
 
+        if isinstance(message, Dict):
+            message = Message(**message)
+
         if message.message_type != MessageType.DIALOG:
             raise ValueError("Only dialog message type is allowed for dialog intent")
         return values

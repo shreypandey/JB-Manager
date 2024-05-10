@@ -144,7 +144,7 @@ class Message(BaseModel):
             raise ValueError(
                 f"form_reply cannot be None for message type: {message_type.name}"
             )
-        elif message_type == MessageType.DIALOG and values.get("dialog") is None:
+        elif message_type == MessageType.DIALOG and dialog is None:
             raise ValueError(
                 f"dialog cannot be None for message type: {message_type.name}"
             )

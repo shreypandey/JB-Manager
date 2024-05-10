@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import logging
 from typing import AsyncGenerator
+
 from lib.data_models import (
     Flow,
     LanguageIntent,
@@ -26,8 +27,9 @@ from lib.data_models import (
     BotIntent,
     RAG,
     RAGQuery,
-    CallbackType
+    CallbackType,
 )
+from lib.models import JBSession
 import crud
 from extensions import producer
 
@@ -38,6 +40,7 @@ flow_topic = os.getenv("KAFKA_FLOW_TOPIC")
 rag_topic = os.getenv("KAFKA_RAG_TOPIC")
 language_topic = os.getenv("KAFKA_LANGUAGE_TOPIC")
 channel_topic = os.getenv("KAFKA_CHANNEL_TOPIC")
+
 
 def push_message(destination: str, flow_output: Flow | Language | Channel | RAG):
     if destination == "flow":
@@ -55,9 +58,7 @@ def push_message(destination: str, flow_output: Flow | Language | Channel | RAG)
 async def handle_bot(bot_config: BotConfig):
     bot_id = bot_config.bot_id
     fsm_code = bot_config.bot.fsm_code
-    requirements_txt = (
-        "openai\ncryptography\n" + bot_config.bot.requirements_txt
-    )
+    requirements_txt = "openai\ncryptography\n" + bot_config.bot.requirements_txt
     index_urls = bot_config.bot.index_urls if bot_config.bot.index_urls else []
 
     bots_parent_directory = Path(__file__).parent
@@ -99,6 +100,14 @@ async def handle_bot(bot_config: BotConfig):
         logger.info("Installed bot %s", bot_id)
 
 
+async def manage_session(turn_id: str, new_session: bool = False) -> JBSession:
+    if new_session:
+        session = await crud.create_session(turn_id)
+    else:
+        session = await crud.get_session(turn_id)
+    return session
+
+
 async def handle_user_input(user_input: UserInput):
     turn_id = user_input.turn_id
     message = user_input.message
@@ -113,9 +122,7 @@ async def handle_user_input(user_input: UserInput):
     )
     if message_type == MessageType.TEXT:
         # TODO: content filter
-        fsm_input = FSMInput(
-            user_input=message.text.body
-        )
+        fsm_input = FSMInput(user_input=message.text.body)
     elif message_type == MessageType.INTERACTIVE_REPLY:
         selected_options = json.dumps(message.interactive_reply.options)
         fsm_input = FSMInput(user_input=selected_options)
@@ -125,7 +132,8 @@ async def handle_user_input(user_input: UserInput):
     else:
         return NotImplemented
 
-    async for fsm_output in handle_fsm_input(turn_id, fsm_input):
+    session = await manage_session(turn_id=turn_id)
+    async for fsm_output in handle_fsm_input(fsm_input, session):
         await handle_fsm_output(turn_id, fsm_output)
 
 
@@ -136,31 +144,36 @@ async def handle_callback_input(callback: Callback):
         callback_input = callback.external
         fsm_input = FSMInput(callback_input=callback_input)
     elif callback_type == CallbackType.RAG:
-        callback_input = [resp.model_dump_json(exclude_none=True) for resp in callback.rag_response]
+        callback_input = [
+            resp.model_dump_json(exclude_none=True) for resp in callback.rag_response
+        ]
         callback_input = json.dumps(callback_input)
         fsm_input = FSMInput(callback_input=callback_input)
-    async for fsm_output in handle_fsm_input(turn_id, fsm_input):
+    session = await manage_session(turn_id=turn_id)
+    async for fsm_output in handle_fsm_input(fsm_input, session):
         await handle_fsm_output(turn_id, fsm_output)
 
 
 async def handle_dialog_input(dialog: Dialog):
     turn_id = dialog.turn_id
-    if dialog.message.dialog.dialog_id == DialogOption.CONVERSATION_RESET:
+    dialog_id = dialog.message.dialog.dialog_id
+    if dialog_id == DialogOption.CONVERSATION_RESET:
         fsm_input = FSMInput(user_input="reset")
-    elif dialog.message.dialog.dialog_id == DialogOption.LANGUAGE_SELECTED:
+        session = await manage_session(turn_id=turn_id, new_session=True)
+    elif dialog_id == DialogOption.LANGUAGE_SELECTED:
+        session = await manage_session(turn_id=turn_id)
+        await crud.update_user_language(
+            turn_id=turn_id, 
+            selected_language=dialog.message.dialog.dialog_input
+        )
         fsm_input = FSMInput(user_input="language_selected")
-    async for fsm_output in handle_fsm_input(turn_id, fsm_input):
+    async for fsm_output in handle_fsm_input(fsm_input, session):
         await handle_fsm_output(turn_id, fsm_output)
 
 
 async def handle_fsm_input(
-    turn_id: str, fsm_input: FSMInput, new_session: bool = False
+    fsm_input: FSMInput, session: JBSession
 ) -> AsyncGenerator[FSMOutput, None]:
-    if new_session:
-        session = await crud.create_session(turn_id)
-    else:
-        session = await crud.get_session(turn_id)
-
     bot_details = await crud.get_bot_by_id(session.bot_id)
     bot_id = bot_details.id
     bot_name = bot_details.name
@@ -264,8 +277,7 @@ async def handle_fsm_output(turn_id: str, fsm_output: FSMOutput):
             turn_id=turn_id,
             collection_name=rag_query.collection_name,
             query=rag_query.query,
-            top_chunk_k_value=rag_query.top_chunk_k_value
+            top_chunk_k_value=rag_query.top_chunk_k_value,
         )
 
     push_message(destination, flow_output)
-

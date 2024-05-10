@@ -3,8 +3,21 @@ from typing import Dict
 from sqlalchemy import desc, func, join, select, update, Integer
 from sqlalchemy.orm import joinedload
 from lib.db_connection import async_session, sync_session
-from lib.models import JBSession, JBPluginUUID, JBBot, JBChannel, JBTurn, JBMessage
+from lib.models import JBSession, JBPluginUUID, JBBot, JBChannel, JBTurn, JBMessage, JBUser
 
+
+async def update_user_language(turn_id: str, selected_language: str):
+    async with async_session() as session:
+        async with session.begin():
+            stmt = (
+                update(JBUser)
+                .values(language_preference=selected_language)
+                .filter(JBTurn.user_id == JBUser.id)
+                .where(JBTurn.id == turn_id)
+            )
+            await session.execute(stmt)
+            await session.commit()
+    return None
 
 async def create_message(
     turn_id: str,

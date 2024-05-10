@@ -18,6 +18,8 @@ from lib.data_models import (
     LanguageIntent,
     Flow,
     FlowIntent,
+    Dialog,
+    UserInput
 )
 from lib.channel_handler import ChannelHandler, PinnacleWhatsappHandler
 from crud import (
@@ -87,13 +89,19 @@ async def process_incoming_messages(channel_input: Channel):
                 flow_input = Flow(
                     source="channel",
                     intent=FlowIntent.DIALOG,
-                    dialog=message.dialog,
+                    dialog=Dialog(
+                        turn_id=turn_id,
+                        message=message
+                    ),
                 )
             else:
                 flow_input = Flow(
                     source="channel",
                     intent=FlowIntent.USER_INPUT,
-                    user_input=message,
+                    user_input=UserInput(
+                        turn_id=turn_id,
+                        message=message
+                    ),
                 )
             producer.send_message(
                 flow_topic, flow_input.model_dump_json(exclude_none=True)

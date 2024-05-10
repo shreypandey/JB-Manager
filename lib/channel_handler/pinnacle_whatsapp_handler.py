@@ -9,6 +9,7 @@ from sqlalchemy import select
 from lib.db_connection import sync_session
 from lib.azure_storage_sync import AzureStorageSync
 from lib.channel_handler.channel_handler import ChannelData, RestChannelHandler, User
+from lib.channel_handler.language import LanguageMapping, LanguageCodes
 from lib.data_models import (
     MessageType,
     Message,
@@ -24,7 +25,8 @@ from lib.data_models import (
     ListMessage,
     ButtonMessage,
     DialogMessage,
-    DialogOption
+    DialogOption,
+    FormReplyMessage
 )
 from lib.models import JBChannel, JBUser, JBForm
 from lib.utils import EncryptionHandler
@@ -41,7 +43,7 @@ storage = AzureStorageSync(**azure_creds)
 class PinnacleWhatsappHandler(RestChannelHandler):
 
     @classmethod
-    def is_valid_data(cls, data: Dict) -> str:
+    def is_valid_data(cls, data: Dict) -> bool:
         return "object" in data and data["object"] == "whatsapp_business_account"
 
     @classmethod
@@ -76,14 +78,12 @@ class PinnacleWhatsappHandler(RestChannelHandler):
     ) -> Message:
         data = bot_input.data
         message_type = data["type"]
-        timestamp = data["timestamp"]
         message_data = data[message_type]
         if message_type == "text":
             text = message_data["body"]
             return Message(
                 message_type=MessageType.TEXT,
                 text=TextMessage(body=text),
-                timestamp=timestamp,
             )
         elif message_type == "audio":
             audio_id = message_data["id"]
@@ -96,7 +96,6 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             return Message(
                 message_type=MessageType.AUDIO,
                 audio=AudioMessage(media_url=storage_url),
-                timestamp=timestamp,
             )
         elif message_type == "interactive":
             interactive_type = message_data["type"]
@@ -104,40 +103,38 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             if interactive_type == "button_reply ":
                 options = [
                     Option(
-                        id=interactive_message_data["id"],
-                        title=interactive_message_data["title"],
+                        option_id=interactive_message_data["id"],
+                        option_text=interactive_message_data["title"],
                     )
                 ]
                 return Message(
                     message_type=MessageType.INTERACTIVE,
                     interactive_reply=InteractiveReplyMessage(options=options),
-                    timestamp=timestamp,
                 )
             elif interactive_type == "list_reply":
-                if (selected_language:=interactive_message_data["id"].startswith("lang_")):
+                if (selected_language:=interactive_message_data["id"]).startswith("lang_"):
+                    selected_language = selected_language.replace("lang_", "").upper()
                     return Message(
                         message_type=MessageType.DIALOG,
                         dialog=DialogMessage(
                             dialog_id=DialogOption.LANGUAGE_SELECTED,
-                            dialog_input=selected_language
+                            dialog_input=LanguageCodes[selected_language].value.lower()
                         ),
                     )
                 options = [
                     Option(
-                        id=interactive_message_data["id"],
-                        title=interactive_message_data["title"],
+                        option_id=interactive_message_data["id"],
+                        option_text=interactive_message_data["title"],
                     )
                 ]
                 return Message(
                     message_type=MessageType.INTERACTIVE,
                     interactive_reply=InteractiveReplyMessage(options=options),
-                    timestamp=timestamp,
                 )
             elif interactive_type == "nfm_reply":
                 return Message(
-                    message_type=MessageType.FORM,
-                    form=FormMessage(body=interactive_message_data["response_json"]),
-                    timestamp=timestamp,
+                    message_type=MessageType.FORM_REPLY,
+                    form_reply=FormReplyMessage(form_data=interactive_message_data["response_json"])
                 )
         return NotImplemented
 
@@ -223,7 +220,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         user: JBUser,
         data: ListMessage,
     ) -> Dict[str, Any]:
-        data = {
+        list_message_data = {
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
@@ -254,7 +251,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                 },
             },
         }
-        return data
+        return list_message_data
 
     @classmethod
     def parse_button_message(
@@ -263,7 +260,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         user: JBUser,
         data: ButtonMessage,
     ) -> Dict[str, Any]:
-        data = {
+        button_message_data = {
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
@@ -281,14 +278,14 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                     "buttons": [
                         {
                             "type": "reply",
-                            "reply": {"id": x["id"], "title": x["title"][:20]},
+                            "reply": {"id": x.option_id, "title": x.option_text[:20]},
                         }
                         for x in data.options
                     ],
                 },
             },
         }
-        return data
+        return button_message_data
 
     @classmethod
     def parse_interactive_message(
@@ -296,11 +293,13 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         channel: JBChannel,
         user: JBUser,
         message: InteractiveMessage,
-    ) -> str:
+    ) -> Dict[str, Any]:
         if isinstance(message, ListMessage):
             data = cls.parse_list_message(channel, user, message)
-        else:
+        elif isinstance(message, ButtonMessage):
             data = cls.parse_button_message(channel, user, message)
+        else:
+            return NotImplemented
         return data
 
     @classmethod
@@ -309,7 +308,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         channel: JBChannel,
         user: JBUser,
         message: ImageMessage,
-    ) -> str:
+    ) -> Dict[str, Any]:
         data = {
             "messaging_product": "whatsapp",
             "preview_url": False,
@@ -326,7 +325,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         channel: JBChannel,
         user: JBUser,
         message: DocumentMessage,
-    ) -> str:
+    ) -> Dict[str, Any]:
         data = {
             "messaging_product": "whatsapp",
             "preview_url": False,
@@ -356,7 +355,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         channel: JBChannel,
         user: JBUser,
         message: FormMessage,
-    ) -> str:
+    ) -> Dict[str, Any]:
         form_id = message.form_id
 
         form_parameters = cls.get_form_parameters(form_id)
@@ -384,33 +383,27 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         channel: JBChannel,
         user: JBUser,
         message: DialogMessage,
-    ) -> str:
+    ) -> Dict[str, Any]:
         if message.dialog_id == DialogOption.LANGUAGE_CHANGE:
-            message = ListMessage(
+            languages = [
+                Option(option_id=f"lang_{language.lower()}", option_text=representation.value)
+                for language, representation in LanguageMapping.__members__.items()
+            ]
+            language_message = ListMessage(
                 header="Language",
                 body="Please select your preferred language",
                 footer="भाषा चुनें",
-                options=[
-                    Option(option_id="lang_hindi", option_text="हिन्दी"),
-                    Option(option_id="lang_english", option_text="English"),
-                    Option(option_id="lang_bengali", option_text="বাংলা"),
-                    Option(option_id="lang_telugu", option_text="తెలుగు"),
-                    Option(option_id="lang_marathi", option_text="मराठी"),
-                    Option(option_id="lang_tamil", option_text="தமிழ்"),
-                    Option(option_id="lang_gujarati", option_text="ગુજરાતી"),
-                    Option(option_id="lang_urdu", option_text="اردو"),
-                    Option(option_id="lang_kannada", option_text="ಕನ್ನಡ"),
-                    Option(option_id="lang_odia", option_text="ଓଡ଼ିଆ"),
-                ],
+                options=languages[:10],
                 button_text="चुनें / Select",
                 list_title="भाषाएँ / Languages",
             )
-            return cls.parse_list_message(channel, user, message)
+            return cls.parse_list_message(channel, user, language_message)
         return NotImplemented
 
     @classmethod
     def generate_header(cls, channel: JBChannel):
-        decrypted_key = EncryptionHandler.decrypt_text(channel.key)
+        encryption_key: str = str(channel.key)
+        decrypted_key = EncryptionHandler.decrypt_text(encryption_key)
         headers = {
             "Content-type": "application/json",
             "wanumber": channel.app_id,
@@ -420,7 +413,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
 
     @classmethod
     def send_message(cls, channel: JBChannel, user: JBUser, message: Message):
-        url = channel.url + "/v1/messages"
+        url = f'{channel.url}/v1/messages'
         headers = cls.generate_header(channel=channel)
         data = cls.parse_bot_output(message=message, channel=channel, user=user)
         import logging
