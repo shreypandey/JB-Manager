@@ -57,9 +57,11 @@ class JBChannel(Base):
     key = Column(String)
     app_id = Column(String)
     url = Column(String)
+    created_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
 
     turns = relationship("JBTurn", back_populates="channel")
-    messages = relationship("JBMessage", back_populates="channel")
     sessions = relationship("JBSession", back_populates="channel")
     bot = relationship("JBBot", back_populates="channels")
 
@@ -89,6 +91,9 @@ class JBTurn(Base):
     channel_id = Column(String, ForeignKey("jb_channel.id"))
     user_id = Column(String, ForeignKey("jb_users.id"))
     turn_type = Column(String)
+    created_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
 
     session = relationship("JBSession", back_populates="turns")
     messages = relationship("JBMessage", back_populates="turn")
@@ -103,11 +108,12 @@ class JBMessage(Base):
     turn_id = Column(String, ForeignKey("jb_turn.id"))
     message_type = Column(String)
     message = Column(JSON, nullable=False)
-    channel_id = Column(String, ForeignKey("jb_channel.id"))
     is_user_sent = Column(Boolean, nullable=False, default=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
 
     turn = relationship("JBTurn", back_populates="messages")
-    channel = relationship("JBChannel", back_populates="messages")
 
 
 class JBDocumentStoreLog(Base):

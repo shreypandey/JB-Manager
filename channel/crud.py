@@ -112,7 +112,6 @@ async def update_message(msg_id: str, **kwargs):
 async def create_message(
     turn_id: str,
     message_type: str,
-    channel_id: str,
     message: Dict,
     is_user_sent: bool = False,
 ):
@@ -124,7 +123,6 @@ async def create_message(
                     id=message_id,
                     turn_id=turn_id,
                     message_type=message_type,
-                    channel_id=channel_id,
                     is_user_sent=is_user_sent,
                     message=message,
                 )

@@ -12,7 +12,7 @@ from langchain_community.vectorstores.pgvector import PGVector
 from openai import OpenAI
 
 from lib.kafka_utils import KafkaConsumer, KafkaProducer
-from lib.data_models import FlowInput, RAGInput
+from lib.data_models import Flow, RAG, FlowIntent, Callback, CallbackType, RAGResponse
 
 load_dotenv()
 
@@ -48,7 +48,6 @@ def send_message(data):
 
 
 async def querying_with_langchain(
-    session_id: str,
     turn_id: str,
     collection_name: str,
     query: str,
@@ -80,17 +79,25 @@ async def querying_with_langchain(
     data = []
     for document in documents:
         data.append({"chunk": document.page_content, "metadata": document.metadata})
-    flow_input = {
-        "source": "retriever",
-        "session_id": session_id,
-        "turn_id": turn_id,
-        "rag_response": data,
-    }
-    flow_input = FlowInput(**flow_input)
+    flow_input = Flow(
+        source="retriever",
+        intent=FlowIntent.CALLBACK,
+        callback=Callback(
+            turn_id=turn_id,
+            callback_type=CallbackType.RAG,
+            rag_response=[
+                RAGResponse(
+                    chunk=x["chunk"],
+                    metadata=x["metadata"]
+                )
+                for x in data
+            ]
+        )
+    )
     # logging.info("flow Input %s", flow_input)
 
     if callback:
-        callback(flow_input.model_dump_json())
+        callback(flow_input.model_dump_json(exclude_none=True))
 
 
 while True:
@@ -98,10 +105,9 @@ while True:
         # will keep trying until non-null message is received
         message = consumer.receive_message(rag_topic, timeout=1.0)
         data = json.loads(message)
-        data = RAGInput(**data)
+        data = RAG(**data)
         retriver_input = data.model_dump(
             include={
-                "session_id",
                 "turn_id",
                 "collection_name",
                 "query",

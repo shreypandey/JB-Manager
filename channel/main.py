@@ -51,10 +51,10 @@ channel_map: Dict[str, type[ChannelHandler]] = {
 }
 
 
-async def process_incoming_messages(message: Channel):
+async def process_incoming_messages(channel_input: Channel):
     """Process incoming messages"""
-    turn_id = message.turn_id
-    bot_input: BotInput = message.bot_input
+    turn_id = channel_input.turn_id
+    bot_input: BotInput = channel_input.bot_input
     channel = channel_map[bot_input.channel_name]
 
     jb_channel = await get_channel_by_turn_id(turn_id)
@@ -113,7 +113,6 @@ async def send_message_to_user(message: Channel):
     await create_message(
         turn_id=turn_id,
         message_type=message.message_type.value,
-        channel_id=jb_channel.id,
         is_user_sent=False,
         message=getattr(message, message.message_type.value).model_dump_json(
             exclude_none=True

@@ -23,7 +23,10 @@ from lib.data_models import (
     Dialog,
     DialogMessage,
     DialogOption,
-    BotIntent
+    BotIntent,
+    RAG,
+    RAGQuery,
+    CallbackType
 )
 import crud
 from extensions import producer
@@ -36,7 +39,7 @@ rag_topic = os.getenv("KAFKA_RAG_TOPIC")
 language_topic = os.getenv("KAFKA_LANGUAGE_TOPIC")
 channel_topic = os.getenv("KAFKA_CHANNEL_TOPIC")
 
-def push_message(destination: str, flow_output):
+def push_message(destination: str, flow_output: Flow | Language | Channel | RAG):
     if destination == "flow":
         producer.send_message(flow_topic, flow_output.model_dump_json())
     elif destination == "language":
@@ -100,17 +103,25 @@ async def handle_user_input(user_input: UserInput):
     turn_id = user_input.turn_id
     message = user_input.message
     message_type = message.message_type
+    await crud.create_message(
+        turn_id=turn_id,
+        message_type=message_type.value,
+        is_user_sent=True,
+        message=getattr(message, message.message_type.value).model_dump_json(
+            exclude_none=True
+        ),
+    )
     if message_type == MessageType.TEXT:
         # TODO: content filter
-        import logging
-        logging.error("Message: %s", message.text.body)
         fsm_input = FSMInput(
             user_input=message.text.body
         )
     elif message_type == MessageType.INTERACTIVE_REPLY:
-        fsm_input = FSMInput(user_input=message.interactive_reply.options)
+        selected_options = json.dumps(message.interactive_reply.options)
+        fsm_input = FSMInput(user_input=selected_options)
     elif message_type == MessageType.FORM_REPLY:
-        fsm_input = FSMInput(user_input=message.form_reply.form_data)
+        form_response = json.dumps(message.form_reply.form_data)
+        fsm_input = FSMInput(user_input=form_response)
     else:
         return NotImplemented
 
@@ -120,8 +131,14 @@ async def handle_user_input(user_input: UserInput):
 
 async def handle_callback_input(callback: Callback):
     turn_id = callback.turn_id
-    callback_input = callback.callback_input
-    fsm_input = FSMInput(callback_input=callback_input)
+    callback_type = callback.callback_type
+    if callback_type == CallbackType.EXTERNAL:
+        callback_input = callback.external
+        fsm_input = FSMInput(callback_input=callback_input)
+    elif callback_type == CallbackType.RAG:
+        callback_input = [resp.model_dump_json(exclude_none=True) for resp in callback.rag_response]
+        callback_input = json.dumps(callback_input)
+        fsm_input = FSMInput(callback_input=callback_input)
     async for fsm_output in handle_fsm_input(turn_id, fsm_input):
         await handle_fsm_output(turn_id, fsm_output)
 
@@ -219,7 +236,6 @@ async def handle_fsm_output(turn_id: str, fsm_output: FSMOutput):
         destination = "flow"
         flow_output = Flow(
             source="flow",
-            turn_id=turn_id,
             intent=FlowIntent.DIALOG,
             dialog=Dialog(
                 turn_id=turn_id,
@@ -242,8 +258,14 @@ async def handle_fsm_output(turn_id: str, fsm_output: FSMOutput):
         )
     elif intent == FSMIntent.RAG_CALL:
         destination = "rag"
-        flow_output = None
-        # TODO: Add RAG call
+        rag_query: RAGQuery = fsm_output.rag_query
+        flow_output = RAG(
+            source="flow",
+            turn_id=turn_id,
+            collection_name=rag_query.collection_name,
+            query=rag_query.query,
+            top_chunk_k_value=rag_query.top_chunk_k_value
+        )
 
     push_message(destination, flow_output)
 

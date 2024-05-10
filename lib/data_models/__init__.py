@@ -25,8 +25,11 @@ from lib.data_models.flow import (
     Bot,
     UserInput,
     Callback,
+    CallbackType,
+    RAGQuery,
     Dialog,
     FSMOutput,
     FSMInput,
     FSMIntent
 )
+from lib.data_models.retriever import RAG, RAGResponse

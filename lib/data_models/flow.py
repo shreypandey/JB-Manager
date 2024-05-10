@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, List, Dict
 from pydantic import BaseModel, model_validator
 from lib.data_models.message import Message, MessageType
+from lib.data_models.retriever import RAGResponse
 
 
 class FlowIntent(Enum):
@@ -45,9 +46,29 @@ class UserInput(BaseModel):
     message: Message
 
 
+class CallbackType(Enum):
+    EXTERNAL = "external"
+    RAG = "rag"
+
 class Callback(BaseModel):
     turn_id: str
-    callback_input: str
+    callback_type: CallbackType
+    external: Optional[str] = None
+    rag_response: Optional[List[RAGResponse]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_data(cls, values: Dict):
+        """Validates data field"""
+        callback_type = values.get("callback_type")
+        external = values.get("external")
+        rag_response = values.get("rag_response")
+
+        if callback_type == CallbackType.EXTERNAL and external is None:
+            raise ValueError("external cannot be None for CallbackType: EXTERNAL")
+        elif callback_type == CallbackType.RAG and rag_response is None:
+            raise ValueError("rag_response cannot be None for CallbackType: RAG")
+        return values
 
 
 class Dialog(BaseModel):
@@ -101,10 +122,15 @@ class FSMIntent(Enum):
     RAG_CALL = "RAG_CALL"
 
 
+class RAGQuery(BaseModel):
+    collection_name: str
+    query: str
+    top_chunk_k_value: int
+
 class FSMOutput(BaseModel):
     intent: FSMIntent
     message: Optional[Message] = None
-    rag_query: Optional[str] = None
+    rag_query: Optional[RAGQuery] = None
 
     @model_validator(mode="before")
     @classmethod
