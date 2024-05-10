@@ -210,7 +210,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "audio",
             "audio": {"link": message.media_url},
         }
@@ -267,7 +267,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "interactive",
             "interactive": {
                 "type": "button",
@@ -314,7 +314,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "image",
             "image": {"link": message.url, "caption": message.caption},
         }
@@ -331,7 +331,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "document",
             "document": {
                 "link": message.url,
@@ -364,7 +364,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             "messaging_product": "whatsapp",
             "preview_url": False,
             "recipient_type": "individual",
-            "to": str(user.phone_number),
+            "to": str(user.identifier),
             "type": "interactive",
             "interactive": {
                 "type": "flow",

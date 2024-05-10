@@ -17,13 +17,14 @@ def decrypt_credentials(credentials: dict) -> dict:
 
 
 def callback_function(fsm_output: FSMOutput):
-    output = json.loads(fsm_output.model_dump_json())
+    output = json.loads(fsm_output.model_dump_json(exclude_none=True))
     print(json.dumps({"fsm_output": output}))
 
 
 runner_input = json.loads(sys.argv[1])
-message_text = runner_input.get("message_text")
-callback_input = runner_input.get("callback_input")
+fsm_input = runner_input.get("fsm_input")
+message_text = fsm_input.get("user_input")
+callback_input = fsm_input.get("callback_input")
 fsm_state_dict = runner_input.get("state")
 bot_name = runner_input.get("bot_name")
 credentials = runner_input.get("credentials")

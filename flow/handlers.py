@@ -23,7 +23,6 @@ from lib.data_models import (
     Dialog,
     DialogMessage,
     DialogOption,
-    Bot,
     BotIntent
 )
 import crud
@@ -200,7 +199,7 @@ async def handle_fsm_output(turn_id: str, fsm_output: FSMOutput):
     if intent == FSMIntent.SEND_MESSAGE:
         message = fsm_output.message
         message_type = message.message_type
-        if message_type in (MessageType.FORM):
+        if message_type == MessageType.FORM:
             destination = "channel"
             flow_output = Channel(
                 source="flow",

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, List, Optional, Tuple
-from pydantic import BaseModel, model_validator
+from typing import Dict, Generator, Optional
+from pydantic import BaseModel
 from lib.models import JBChannel, JBUser
-from lib.data_models import Message, BotInput, RestBotInput
+from lib.data_models import Message, BotInput
 
 
 class User(BaseModel):
