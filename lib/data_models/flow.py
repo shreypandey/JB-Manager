@@ -155,8 +155,6 @@ class FSMInput(BaseModel):
     @classmethod
     def validate_data(cls, values: Dict):
         """Validates data field"""
-        import logging
-        logging.error(f"values: {values}")
         user_input = values.get("user_input")
         callback_input = values.get("callback_input")
         if user_input is None and callback_input is None:
