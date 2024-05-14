@@ -6,7 +6,8 @@ from pydantic import BaseModel, model_validator
 class MessageType(Enum):
     TEXT = "text"
     AUDIO = "audio"
-    INTERACTIVE = "interactive"
+    BUTTON = "button"
+    OPTION_LIST = "option_list"
     INTERACTIVE_REPLY = "interactive_reply"
     FORM = "form"
     FORM_REPLY = "form_reply"
@@ -87,7 +88,8 @@ class Message(BaseModel):
     message_type: MessageType
     text: Optional[TextMessage] = None
     audio: Optional[AudioMessage] = None
-    interactive: Optional[InteractiveMessage] = None
+    button: Optional[ButtonMessage] = None
+    option_list: Optional[ListMessage] = None
     interactive_reply: Optional[InteractiveReplyMessage] = None
     form: Optional[FormMessage] = None
     form_reply: Optional[FormReplyMessage] = None
@@ -102,7 +104,8 @@ class Message(BaseModel):
         message_type = values.get("message_type")
         text = values.get("text")
         audio = values.get("audio")
-        interactive = values.get("interactive")
+        button = values.get("button")
+        option_list = values.get("option_list")
         form = values.get("form")
         image = values.get("image")
         document = values.get("document")
@@ -118,9 +121,13 @@ class Message(BaseModel):
             raise ValueError(
                 f"audio cannot be None for message type: {message_type.name}"
             )
-        elif message_type == MessageType.INTERACTIVE and interactive is None:
+        elif message_type == MessageType.BUTTON and button is None:
             raise ValueError(
-                f"interactive cannot be None for message type: {message_type.name}"
+                f"button cannot be None for message type : {message_type.name}"
+            )
+        elif message_type == MessageType.OPTION_LIST and option_list is None:
+            raise ValueError(
+                f"option_list cannot be None for message type: {message_type.name}"
             )
         elif message_type == MessageType.FORM and form is None:
             raise ValueError(

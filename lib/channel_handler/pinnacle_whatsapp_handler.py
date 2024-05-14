@@ -100,7 +100,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         elif message_type == "interactive":
             interactive_type = message_data["type"]
             interactive_message_data = message_data[interactive_type]
-            if interactive_type == "button_reply ":
+            if interactive_type == "button_reply":
                 options = [
                     Option(
                         option_id=interactive_message_data["id"],
@@ -108,7 +108,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                     )
                 ]
                 return Message(
-                    message_type=MessageType.INTERACTIVE,
+                    message_type=MessageType.INTERACTIVE_REPLY,
                     interactive_reply=InteractiveReplyMessage(options=options),
                 )
             elif interactive_type == "list_reply":
@@ -128,7 +128,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                     )
                 ]
                 return Message(
-                    message_type=MessageType.INTERACTIVE,
+                    message_type=MessageType.INTERACTIVE_REPLY,
                     interactive_reply=InteractiveReplyMessage(options=options),
                 )
             elif interactive_type == "nfm_reply":
@@ -151,11 +151,17 @@ class PinnacleWhatsappHandler(RestChannelHandler):
             data = cls.parse_audio_message(
                 channel=channel, user=user, message=message.audio
             )
-        elif message_type == MessageType.INTERACTIVE:
-            data = cls.parse_interactive_message(
+        elif message_type == MessageType.BUTTON:
+            data = cls.parse_button_message(
                 channel=channel,
                 user=user,
-                message=message.interactive,
+                message=message.button,
+            )
+        elif message_type == MessageType.OPTION_LIST:
+            data = cls.parse_list_message(
+                channel=channel,
+                user=user,
+                message=message.option_list
             )
         elif message_type == MessageType.IMAGE:
             data = cls.parse_image_message(
@@ -218,7 +224,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         cls,
         channel: JBChannel,
         user: JBUser,
-        data: ListMessage,
+        message: ListMessage,
     ) -> Dict[str, Any]:
         list_message_data = {
             "messaging_product": "whatsapp",
@@ -230,21 +236,21 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                 "type": "list",
                 "header": {
                     "type": "text",
-                    "text": data.header[:59] if data.header else None,
+                    "text": message.header[:59] if message.header else None,
                 },
-                "body": {"text": data.body},
-                "footer": {"text": data.footer},
+                "body": {"text": message.body},
+                "footer": {"text": message.footer},
                 "action": {
-                    "button": data.button_text,
+                    "button": message.button_text,
                     "sections": [
                         {
-                            "title": data.list_title,
+                            "title": message.list_title,
                             "rows": [
                                 {
                                     "id": option.option_id,
                                     "title": option.option_text[:20],
                                 }
-                                for option in data.options
+                                for option in message.options
                             ],
                         }
                     ],
@@ -258,7 +264,7 @@ class PinnacleWhatsappHandler(RestChannelHandler):
         cls,
         channel: JBChannel,
         user: JBUser,
-        data: ButtonMessage,
+        message: ButtonMessage,
     ) -> Dict[str, Any]:
         button_message_data = {
             "messaging_product": "whatsapp",
@@ -270,17 +276,17 @@ class PinnacleWhatsappHandler(RestChannelHandler):
                 "type": "button",
                 "header": {
                     "type": "text",
-                    "text": data.header[:59] if data.header else None,
+                    "text": message.header[:59] if message.header else None,
                 },
-                "body": {"text": data.body},
-                "footer": {"text": data.footer},
+                "body": {"text": message.body},
+                "footer": {"text": message.footer},
                 "action": {
                     "buttons": [
                         {
                             "type": "reply",
                             "reply": {"id": x.option_id, "title": x.option_text[:20]},
                         }
-                        for x in data.options
+                        for x in message.options
                     ],
                 },
             },

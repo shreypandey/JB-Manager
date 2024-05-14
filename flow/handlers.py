@@ -124,7 +124,10 @@ async def handle_user_input(user_input: UserInput):
         # TODO: content filter
         fsm_input = FSMInput(user_input=message.text.body)
     elif message_type == MessageType.INTERACTIVE_REPLY:
-        selected_options = json.dumps(message.interactive_reply.options)
+        selected_options = json.dumps([
+            option.model_dump(exclude_none=True)
+            for option in message.interactive_reply.options
+        ])
         fsm_input = FSMInput(user_input=selected_options)
     elif message_type == MessageType.FORM_REPLY:
         form_response = json.dumps(message.form_reply.form_data)
@@ -163,8 +166,7 @@ async def handle_dialog_input(dialog: Dialog):
     elif dialog_id == DialogOption.LANGUAGE_SELECTED:
         session = await manage_session(turn_id=turn_id)
         await crud.update_user_language(
-            turn_id=turn_id, 
-            selected_language=dialog.message.dialog.dialog_input
+            turn_id=turn_id, selected_language=dialog.message.dialog.dialog_input
         )
         fsm_input = FSMInput(user_input="language_selected")
     async for fsm_output in handle_fsm_input(fsm_input, session):
