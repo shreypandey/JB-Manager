@@ -30,7 +30,7 @@ async def send_message_to_user(turn_id: str, message: Message):
         turn_id=turn_id,
         message_type=message.message_type.value,
         is_user_sent=False,
-        message=getattr(message, message.message_type.value).model_dump_json(
+        message=getattr(message, message.message_type.value).model_dump(
             exclude_none=True
         ),
     )
